@@ -26,6 +26,8 @@ $ ./export.sh <keyspace name>
 
 ``` 
 
+You can configure the cassandra data directory with ENV varibale DATA_DIR. By default, it's set to `/var/lib/cassandra`
+
 You can have a list of your keyspace with `desccribe keyspaces`
 
 Transfer the tar file to one of the node of the new cluster.
