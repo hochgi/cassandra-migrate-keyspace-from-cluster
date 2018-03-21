@@ -1,5 +1,5 @@
-#!/bin/bash
 
+#!/bin/bash
 tar_file=$1
 bkp_name="bkp-$$"
 

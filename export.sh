@@ -2,14 +2,14 @@
 
 keyspace=$1
 bkp_name="bkp-$$"
-data_dir="/var/lib/cassandra/data/"
+data_dir=${DATA_DIR:-"/var/lib/cassandra/data/"}
 
 if [ -z "${keyspace}" ]; then
     echo "Usage export.sh [keyspace]"
     exit 1
 fi
 
-echo "Create snapshot named: ${bkp_name}"
+echo "Create snapshot named: ${bkp_name} in data dir ${data_dir}"
 nodetool snapshot "${keyspace}" -t "${bkp_name}"
 
 echo "Preparing backup file"
