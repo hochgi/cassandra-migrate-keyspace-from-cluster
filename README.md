@@ -25,11 +25,11 @@ The export script `export.sh` is doing all that, just run it like that on one of
 $ ./export.sh <keyspace name>
 
 ``` 
-### EyeEm specific config settings
+#### EyeEm specific config settings
 You can configure the cassandra data directory with ENV variable DATA_DIR. By default, it's set to `/var/lib/cassandra`.
 Also make sure you have the `CQLSH_HOST` set on each machine, referring to the internal IP. It is the easiest to `source ~/.cqlsh` from the root shell to set it.
 
-You can have a list of your keyspace with `desccribe keyspaces`
+You can have a list of your keyspace with `desccribe keyspaces;`
 
 Transfer the tar file to one of the node of the new cluster.
 
