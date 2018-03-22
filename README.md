@@ -26,7 +26,8 @@ $ ./export.sh <keyspace name>
 
 ``` 
 
-You can configure the cassandra data directory with ENV varibale DATA_DIR. By default, it's set to `/var/lib/cassandra`
+You can configure the cassandra data directory with ENV variable DATA_DIR. By default, it's set to `/var/lib/cassandra`.
+Also make sure you have the `CQLSH_HOST` set on each machine, referring to the internal IP.
 
 You can have a list of your keyspace with `desccribe keyspaces`
 
