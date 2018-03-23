@@ -2,6 +2,7 @@
 #!/bin/bash
 tar_file=$1
 bkp_name="bkp-$$"
+cqlsh_host=${CQLSH_HOST:-"localhost"}
 
 if [ -z "${tar_file}" ]; then
     echo "Usage import.sh [tar file]"
@@ -21,5 +22,5 @@ echo "Create empty keyspace: ${keyspace}"
 cat "${bkp_name}/${keyspace}.sql" | cqlsh
 
 for dir in "${bkp_name}/${keyspace}/"*; do
-    sstableloader -d localhost "${dir}"
+    sstableloader -d ${cqlsh_host} "${dir}"
 done
