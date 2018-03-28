@@ -13,7 +13,7 @@ keyspace=$(basename "${tar_file}" ".tar.gz")
 
 mkdir -p "${bkp_name}"
 
-tar -xvzf "${tar_file}" -C "${bkp_name}"
+tar --use-compress-program=pigz -xvf "${tar_file}" -C "${bkp_name}"
 
 echo "Drop keyspace ${keyspace}"
 cqlsh -e "drop keyspace \"${keyspace}\";"

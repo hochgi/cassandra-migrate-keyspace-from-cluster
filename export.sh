@@ -2,7 +2,9 @@
 
 keyspace=$1
 bkp_name="bkp-$$"
+
 data_dir=${DATA_DIR:-"/var/lib/cassandra/data/"}
+cqlsh_host=${CQLSH_HOST:-"localhost"}
 
 if [ -z "${keyspace}" ]; then
     echo "Usage export.sh [keyspace]"
@@ -27,7 +29,7 @@ cqlsh -e "desc \"${keyspace}\";" > "${bkp_name}/${keyspace}.sql"
 
 echo "Create tar file: ${keyspace}.tar.gz"
 cd "${bkp_name}"
-tar -czf "../${keyspace}.tar.gz" .
+tar --use-compress-program=pigz -cf "../${keyspace}.tar.gz" .
 cd -
 
 echo "Remove temporary files"
