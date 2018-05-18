@@ -55,5 +55,5 @@ $ ./import.sh --file <arg> [ --keypsace <arg> ][ --host <arg> ]
 And of course all options can be listed by supplying `--help`
 
 #### original authors:
-I based this fork on top of @tamizhgeek & @friedemann's [fork](https://github.com/eyeem/cassandra-migrate-keyspace-from-cluster),   
-which in turn is based on @marty-macfly's [original repo](https://github.com/linkbynet/cassandra-migrate-keyspace-from-cluster).
+I based this fork on top of [@tamizhgeek](https://github.com/tamizhgeek)'s & [@friedemann](https://github.com/friedemann)'s [fork](https://github.com/eyeem/cassandra-migrate-keyspace-from-cluster),   
+which in turn is based on [@marty-macfly](https://github.com/marty-macfly)'s [original repo](https://github.com/linkbynet/cassandra-migrate-keyspace-from-cluster).
