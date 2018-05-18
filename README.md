@@ -22,14 +22,16 @@ Create an export
 The export script `export.sh` is doing all that, just run it like that on one of the Cassandra cluster node :
 
 ```bash
-$ ./export.sh <keyspace name>
+$ ./export.sh [ --data-dir <arg> ][ --host <arg> ] --keyspace <arg>
 
-``` 
-#### EyeEm specific config settings
-You can configure the cassandra data directory with ENV variable DATA_DIR. By default, it's set to `/var/lib/cassandra`.
-Also make sure you have the `CQLSH_HOST` set on each machine, referring to the internal IP. It is the easiest to `source ~/.cqlsh` from the root shell to set it.
-
+```
+#### ~~EyeEm~~ hochgi's specific config settings
+You can configure the cassandra data directory with `-d`/`--data-dir` options. By default, it's set to `/var/lib/cassandra/data`.
+Also make sure you have the `-h`/`--host` set on each machine, referring to the internal IP. It is the easiest to `source ~/.cqlsh` from the root shell to set it (defaults to `localhost`).
+And of course, you must supply the keyspace with required option `-k`/`--keyspace`.  
 You can have a list of your keyspace with `desccribe keyspaces;`
+
+All options can be listed by supplying `--help`
 
 Transfer the tar file to one of the node of the new cluster.
 
@@ -45,7 +47,13 @@ Now you need to import data to do so, you have to :
 That what the `import.sh` script is doing from the previous generated tar file.
 
 ```bash
-$ ./import.sh <keypsace backup tar file>
-
+$ ./import.sh --backup-dir <arg> --keypsace <arg> [ --host <arg> ]
+# or:
+$ ./import.sh --file <arg> [ --keypsace <arg> ][ --host <arg> ]
 ```
 
+And of course all options can be listed by supplying `--help`
+
+#### original authors:
+I based this fork on top of @tamizhgeek & @friedemann's [fork](https://github.com/eyeem/cassandra-migrate-keyspace-from-cluster),   
+which in turn is based on @marty-macfly's [original repo](https://github.com/linkbynet/cassandra-migrate-keyspace-from-cluster).

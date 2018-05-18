@@ -1,19 +1,96 @@
-
 #!/bin/bash
-tar_file=$1
-bkp_name="bkp-$$"
-cqlsh_host=${CQLSH_HOST:-"localhost"}
+die() {
+  printf '%s\n' "$1" >&2
+  exit 1
+}
 
-if [ -z "${tar_file}" ]; then
-    echo "Usage import.sh [tar file]"
-    exit 1
+cqlsh_host="localhost"
+
+while :; do
+  case $1 in
+    -b|--backup-dir)
+      if [ "$2" ]; then
+        if [ -z "$tar_file" ]; then
+          bkp_dir="$2"
+          shift
+        else
+          die 'ERROR: you must supply either "--backup-dir" or "--file", but not both.'
+        fi
+      else
+        die 'ERROR: "--backup-dir" requires a non-empty option argument.'
+      fi
+    ;;
+    -f|--file)
+      if [ "$2" ]; then
+        if [ -z "$bkp_dir" ]; then
+          tar_file="$2"
+          shift
+        else
+          die 'ERROR: you must supply either "--backup-dir" or "--file", but not both.'
+        fi
+      else
+        die 'ERROR: "--file" requires a non-empty option argument.'
+      fi
+    ;;
+    -h|--host)
+      if [ "$2" ]; then
+        cqlsh_host=$2
+        shift
+      else
+        die 'ERROR: "--host" requires a non-empty option argument.'
+      fi
+    ;;
+    -k|--keyspace)
+      if [ "$2" ]; then
+        keyspace=$2
+        shift
+      else
+        die 'ERROR: "--keyspace" requires a non-empty option argument.'
+      fi
+    ;;
+    --help)
+      echo -e "Usage: import.sh [OPTION]...\n"
+      echo -e "import.sh loads a backup (snapshot) from a local file/directory into cassandra.\n"
+      echo "  -b, --backup-dir <ARG> If supplied, will use extracted data (which may has been"
+      echo "                         rsynced, or previously extracted) from backup-dir,"
+      echo "                         otherwise \"--file\" must be supplied."
+      echo "  -f, --file       <ARG> If supplied, will extract compressed file, and load the"
+      echo "                         data from there, otherwise:"
+      echo "                         \"--backup-dir\" must be supplied."
+      echo "  -h, --host       <ARG> Cassandra's (cqlsh) host to connect to."
+      echo "                         (default: localhost)"
+      echo "  -k, --keyspace   <ARG> The keyspace to import, must be supplied together with"
+      echo "                         \"--backup-dir\" since can't be inferred from filename."
+      echo "                         If \"--file\" was supplied, it is optional, and can be"
+      echo "                         used instead of inferred keyspace name."
+      echo -e "  --help                 Shows this help message\n"
+      exit 0
+    ;;
+    *)
+    break
+  esac
+  shift
+done
+
+
+
+
+if [ -z "$tar_file" ]; then
+  if [ -z "$bkp_dir" ]; then
+    die 'ERROR: either "--backup-dir" or "--file" must be supplied.'
+  elif [ -z "$keyspace" ]; then
+    die 'ERROR: "--keyspace" must be supplied with "--backup-dir".'
+  else
+    bkp_name=$bkp_dir
+  fi
+else
+  bkp_name="bkp-$$"
+  if [ -z "$keyspace" ]; then
+    keyspace=$(basename "${tar_file}" ".tar.gz")
+  fi
+  mkdir -p "${bkp_name}"
+  tar --use-compress-program=pigz -xvf "${tar_file}" -C "${bkp_name}"
 fi
-
-keyspace=$(basename "${tar_file}" ".tar.gz")
-
-mkdir -p "${bkp_name}"
-
-tar --use-compress-program=pigz -xvf "${tar_file}" -C "${bkp_name}"
 
 echo "Drop keyspace ${keyspace}"
 cqlsh -e "drop keyspace \"${keyspace}\";"
