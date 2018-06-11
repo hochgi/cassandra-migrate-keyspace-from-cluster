@@ -1,0 +1,139 @@
+#!/bin/bash
+die() {
+  printf '%s\n' "$1" >&2
+  exit 1
+}
+
+bkp_name="bkp-$$"
+data_dir="/var/lib/cassandra/data/"
+cqlsh_host="localhost"
+cqlsh_port="9042"
+zip_files=false
+
+while :; do
+  case $1 in
+    -d|--data-dir)
+      if [ "$2" ]; then
+        data_dir=$2
+        shift
+      else
+        die 'ERROR: "--data-dir" requires a non-empty option argument.'
+      fi
+    ;;
+    -h|--host)
+      if [ "$2" ]; then
+        cqlsh_host=$2
+        shift
+      else
+        die 'ERROR: "--host" requires a non-empty option argument.'
+      fi
+    ;;
+    -j|--jmx-port)
+      if [ "$2" ]; then
+        jmx_port=$2
+        shift
+      else
+        die 'ERROR: "--jmx-port" requires a non-empty option argument.'
+      fi
+    ;;
+    -k|--keyspace)
+      if [ "$2" ]; then
+        if [ -z "$keyspace" ]; then
+          keyspace=$2
+        else
+          die 'ERROR: "--keyspace" multiple occurrences'
+        fi
+        shift
+      else
+        die 'ERROR: "--keyspace" requires a non-empty option argument.'
+      fi
+    ;;
+    -p|--port)
+      if [ "$2" ]; then
+        cqlsh_port=$2
+        shift
+      else
+        die 'ERROR: "--port" requires a non-empty option argument.'
+      fi
+    ;;
+    -t|--table)
+      if [ "$2" ]; then
+        table=$2
+        shift
+      else
+        die 'ERROR: "--table" requires a non-empty option argument.'
+      fi
+    ;;
+    -z|--zip-files)
+      zip_files=true
+    ;;
+    --help)
+      echo -e "Usage: export-init [OPTION]...\n"
+      echo "export-init makes a backup (snapshot) of a remote cassandra cluster's keyspace and"
+      echo "enables rsync it to local machine. To use it incrementally, following invokations"
+      echo -e "should use export-incremental script.\n"
+      echo "  -d, --data-dir <ARG> Cassandra data dir   (default: /var/lib/cassandra/data/)"
+      echo "  -h, --host     <ARG> Cassandra's host     (default: localhost)"
+      echo "  -j, --jmx-port <ARG> Cassandra's JMX port (default: 7199)"
+      echo "  -k, --keyspace <ARG> Table's Keyspace     (required)"
+      echo "  -p, --port     <ARG> CQL transport port   (default: 9042)"
+      echo "  -t, --table    <ARG> The table to export  (required)"
+      echo "  -z, --zip-files      If supplied, will use 'pigz' to compress the files."
+      echo -e "  --help          Shows this help message\n"
+      exit 0
+    ;;
+    *)
+    break
+  esac
+  shift
+done
+
+if [ -z "${keyspace}" ]; then
+  die 'ERROR: "--keyspace" must be supplied'
+fi
+
+if [ -z "${table}" ]; then
+  die 'ERROR: "--keyspace" must be supplied'
+fi
+
+if [ -z "${jmx_port}" ]; then
+  cqlsh_host_with_optional_jmx_port="${cqlsh_host}"
+else
+  cqlsh_host_with_optional_jmx_port="${cqlsh_host}:${jmx_port}"
+fi
+
+echo "Create snapshot named [${bkp_name}] at [${cqlsh_host_with_optional_jmx_port}] in data dir [${data_dir}] for keyspace [${keyspace}]"
+if [ -z "${jmx_port}" ]; then
+  nodetool -h "${cqlsh_host}" snapshot --table "${table}" -t "${bkp_name}" "${keyspace}"
+else
+  nodetool -h "${cqlsh_host}" -p "${jmx_port}" snapshot --table "${table}" -t "${bkp_name}" "${keyspace}"
+fi
+
+echo "Preparing backup file"
+table_uuid=$(CQLSH_HOST="${cqlsh_host}" CQLSH_PORT="${cqlsh_port}" cqlsh -e "select id from system_schema.tables WHERE keyspace_name='${keyspace}' AND table_name='${table}';" | sed '4q;d' | tr -d ' -')
+output_dir="${bkp_name}/${keyspace}/${table}"
+mkdir -p $output_dir
+for name in $(find  "${data_dir}/${keyspace}/${table}-${table_uuid}/snapshots/${bkp_name}" -type f); do
+  cp -al "$name" "${output_dir}/"
+done
+
+echo "Remove snapshot named: ${bkp_name}"
+if [ -z "${jmx_port}" ]; then
+  nodetool -h "${cqlsh_host}" clearsnapshot -t "${bkp_name}" "${keyspace}"
+else
+  nodetool -h "${cqlsh_host}" -p "${jmx_port}" clearsnapshot -t "${bkp_name}" "${keyspace}"
+fi
+
+echo "Dump keyspace and table creation instruction"
+CQLSH_HOST="${cqlsh_host}" CQLSH_PORT="${cqlsh_port}" cqlsh -e "desc \"${keyspace}\";" $cqlsh_host | grep "CREATE KEYSPACE ${keyspace}" | sed s/"CREATE KEYSPACE"/"CREATE KEYSPACE IF NOT EXISTS"/g > "${bkp_name}/${keyspace}.cql"
+CQLSH_HOST="${cqlsh_host}" CQLSH_PORT="${cqlsh_port}" cqlsh -e "describe \"${keyspace}\".\"${table}\";" $cqlsh_host >> "${bkp_name}/${keyspace}.cql"
+
+if [ "$zip_files" = true ] ; then
+  echo "Create tar file: ${keyspace}.tar.gz"
+  cd "${bkp_name}"
+  tar --use-compress-program=pigz -cf "../${keyspace}.tar.gz" .
+  cd -
+
+  echo "Remove temporary (uncompressed) files"
+  rm -rf "${bkp_name}"
+fi

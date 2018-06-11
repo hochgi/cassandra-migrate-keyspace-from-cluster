@@ -5,6 +5,7 @@ die() {
 }
 
 cqlsh_host="localhost"
+cqlsh_port="9042"
 
 while :; do
   case $1 in
@@ -48,6 +49,14 @@ while :; do
         die 'ERROR: "--keyspace" requires a non-empty option argument.'
       fi
     ;;
+    -p|--port)
+      if [ "$2" ]; then
+        cqlsh_port=$2
+        shift
+      else
+        die 'ERROR: "--port" requires a non-empty option argument.'
+      fi
+    ;;
     --help)
       echo -e "Usage: import.sh [OPTION]...\n"
       echo -e "import.sh loads a backup (snapshot) from a local file/directory into cassandra.\n"
@@ -72,9 +81,6 @@ while :; do
   shift
 done
 
-
-
-
 if [ -z "$tar_file" ]; then
   if [ -z "$bkp_dir" ]; then
     die 'ERROR: either "--backup-dir" or "--file" must be supplied.'
@@ -92,11 +98,8 @@ else
   tar --use-compress-program=pigz -xvf "${tar_file}" -C "${bkp_name}"
 fi
 
-echo "Drop keyspace ${keyspace}"
-cqlsh -e "drop keyspace \"${keyspace}\";"
-
-echo "Create empty keyspace: ${keyspace}"
-cat "${bkp_name}/${keyspace}.sql" | cqlsh
+echo "Create keyspace (if not exist) ${keyspace} & exported tables."
+CQLSH_HOST="${cqlsh_host}" CQLSH_PORT="${cqlsh_port}" cqlsh < "${bkp_name}/${keyspace}.cql"
 
 for dir in "${bkp_name}/${keyspace}/"*; do
     sstableloader -d ${cqlsh_host} "${dir}"
