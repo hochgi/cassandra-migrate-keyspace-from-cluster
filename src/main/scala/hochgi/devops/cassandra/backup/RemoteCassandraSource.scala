@@ -38,9 +38,27 @@ object RemoteCassandraSource {
 
     println(listOfKeysToBind.map(_.mkString("[", ",", "]")).mkString("[\n\t", ",\n\t", "]"))
 
-    Source.fromIterator(() => Util.cartesianProduct(listOfKeysToBind)).flatMapConcat { keysToBind =>
-      println(s"Starting Cassandra source for [$stmt] with bindings ${keysToBind.mkString("[", ",", "]")}")
-      CassandraSource(preparedStatement.bind(keysToBind: _*))(session)
+    Source
+      .fromIterator(() => Util.cartesianProduct(listOfKeysToBind))
+      .grouped(conf.getInt("hochgi.devops.cassandra.remote.parallelism"))
+      .flatMapConcat { keysToBindSeq =>
+        val sources = keysToBindSeq.map { keysToBind =>
+          println(s"Starting Cassandra source for [$stmt] with bindings ${keysToBind.mkString("[", ",", "]")}")
+          CassandraSource(preparedStatement.bind(keysToBind: _*))(session)
+        }
+        interleaveSourcesRec(sources)
+      }
+  }
+
+  def interleaveSourcesRec(sources: Seq[Source[Row,NotUsed]]): Source[Row,NotUsed] = {
+    if(sources.isEmpty) Source.empty
+    else if(sources.length == 1) sources.head
+    else {
+      val reduced = sources.sliding(2, 2).map { oneOrTwoSources =>
+        if (oneOrTwoSources.length == 1) oneOrTwoSources.head
+        else oneOrTwoSources.head.merge(oneOrTwoSources.last)
+      }.toSeq
+      interleaveSourcesRec(reduced)
     }
   }
 }
