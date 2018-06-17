@@ -11,7 +11,7 @@ lazy val root = (project in file(".")).
     fork := true,
     libraryDependencies ++= Seq(
       scalaTest % Test,
-      "ch.qos.logback" % "logback-core" % "1.2.3",
+      "ch.qos.logback" % "logback-classic" % "1.2.3",
       "com.typesafe" % "config" % "1.3.3",
       "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0",
       "com.lightbend.akka" %% "akka-stream-alpakka-cassandra" % "0.19",

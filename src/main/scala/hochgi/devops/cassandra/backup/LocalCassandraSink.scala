@@ -1,17 +1,26 @@
 package hochgi.devops.cassandra.backup
 
+import java.util.concurrent.atomic.AtomicLong
+
 import akka.Done
-import akka.stream.alpakka.cassandra.scaladsl.CassandraSink
-import akka.stream.scaladsl.Sink
-import com.datastax.driver.core.{DataType, PreparedStatement, Row, Session}
+import akka.stream.scaladsl.{Flow, Keep, Sink}
+import com.datastax.driver.core._
 import com.typesafe.config.Config
+import com.typesafe.scalalogging.LazyLogging
+import org.slf4j.{Logger, LoggerFactory}
 
+import scala.concurrent.ExecutionContext.{global => ec}
 import scala.concurrent.Future
+import scala.util.{Failure, Success, Try}
 
-object LocalCassandraSink {
+class LocalCassandraSink(conf: Config) extends LazyLogging {
 
-  def cassandraSink(conf: Config, session: Session): Sink[Row, Future[Done]] = {
-    val preparedStatement = session.prepare(conf.getString("hochgi.devops.cassandra.local.insert-statement"))
+  val parallelism: Int = conf.getInt("hochgi.devops.cassandra.local.parallelism")
+  val statement: String = conf.getString("hochgi.devops.cassandra.local.insert-statement")
+  val prefix: Option[String] = Some(statement.takeWhile(_ != '('))
+
+  def cassandraSink(session: Session): Sink[Row, Future[Done]] = {
+    val preparedStatement = session.prepare(statement)
     val statementBinder = (row: Row, stmt: PreparedStatement) => {
       var bs = stmt.bind()
       row.getColumnDefinitions
@@ -47,10 +56,56 @@ object LocalCassandraSink {
             case DataType.Name.TUPLE     => ???
           }
         }
-      CassandraMirrorBackupper.ingestedRowRate.mark()
       bs
     }
 
-    CassandraSink[Row](conf.getInt("hochgi.devops.cassandra.local.parallelism"), preparedStatement, statementBinder)(session)
+    Flow[Row]
+      .mapAsyncUnordered(parallelism) { row =>
+        val stmt = statementBinder(row, preparedStatement)
+
+        lazy val stmt4log = Util.rowStringRepr(row,prefix)
+        Util.simpleRetry(16)(Util.listenableFutureToFuture(session.executeAsync(stmt))) {
+          case err: Throwable => {
+            //JMX metrics mark
+            CassandraMirrorBackupper.ingestFailureRate.mark()
+
+            logger.error(s"Failed to ingest bounded statement for row [$stmt4log]")
+          }
+        }(ec).transform { t =>
+          t.failed.foreach { _ =>
+            // Only when we fail completely after retrying
+            // we'll log to failed-statements log.
+            LocalCassandraSink.failedStatementsLogger.error(stmt4log)
+          }
+          Success(t)
+        }(ec)
+      }.toMat(Sink.foreach[Try[ResultSet]]{
+      case Success(_) => {
+        // JMX metrics mark
+        CassandraMirrorBackupper.ingestedRowRate.mark()
+
+        // printout reports
+        val currentCount = LocalCassandraSink.ingestCounter.incrementAndGet()
+        val pow = math.max(3, math.log10(currentCount).toInt)
+        if (currentCount % math.pow(10, pow).toLong == 0)
+          println(s"total ingest count is [$currentCount]")
+      }
+      case Failure(_) => {
+        // JMX metrics mark
+        CassandraMirrorBackupper.ingestTotalFailureRate.mark()
+
+        // printout reports
+        val currentCount = LocalCassandraSink.errorsCounter.incrementAndGet()
+        val pow = math.log10(currentCount).toInt
+        if (currentCount % math.pow(10, pow).toLong == 0 || pow == 0)
+          println(s"total ingest count is [$currentCount]")
+      }
+    })(Keep.right)
   }
+}
+
+object LocalCassandraSink {
+  val failedStatementsLogger: Logger = LoggerFactory.getLogger("failedStatementsLogger")
+  val ingestCounter: AtomicLong = new AtomicLong(0L)
+  val errorsCounter: AtomicLong = new AtomicLong(0L)
 }

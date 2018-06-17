@@ -1,0 +1,42 @@
+<configuration debug="true">
+
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>target/application.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.FixedWindowRollingPolicy">
+            <fileNamePattern>target/logs/application.%i.log</fileNamePattern>
+            <minIndex>0</minIndex>
+            <maxIndex>9</maxIndex>
+        </rollingPolicy>
+
+        <triggeringPolicy class="ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy">
+            <maxFileSize>100MB</maxFileSize>
+        </triggeringPolicy>
+        <encoder>
+            <pattern>%date{ISO8601} %-44.44([%thread]) %-5level %-36.36logger{36}.%M\(%line\) - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="FAILED_STATEMENTS" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>failed-statements.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.FixedWindowRollingPolicy">
+            <fileNamePattern>logs/failed-statements.%i.log</fileNamePattern>
+            <minIndex>0</minIndex>
+            <maxIndex>9</maxIndex>
+        </rollingPolicy>
+
+        <triggeringPolicy class="ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy">
+            <maxFileSize>100MB</maxFileSize>
+        </triggeringPolicy>
+        <encoder>
+            <pattern>%msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="FILE" />
+    </root>
+
+    <logger name="failedStatementsLogger" level="DEBUG" additivity="true">
+        <appender-ref ref="FAILED_STATEMENTS"/>
+    </logger>
+</configuration>
